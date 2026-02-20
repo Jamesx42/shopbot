@@ -1,0 +1,12 @@
+name = "shopbot"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Set secrets via CLI:
+# wrangler secret put BOT_TOKEN
+# wrangler secret put MONGODB_URI
+# wrangler secret put NOWPAYMENTS_API_KEY
+# wrangler secret put NOWPAYMENTS_IPN_SECRET
+# wrangler secret put ADMIN_IDS
+# wrangler secret put WEBHOOK_URL
