@@ -1,6 +1,7 @@
 // local.js — Run locally with long polling (no webhook needed)
 // Usage: node local.js
 
+import http from 'http';
 import { config } from 'dotenv';
 config(); // loads .env file
 
@@ -20,3 +21,5 @@ const bot = createBot(env);
 await bot.start({
   onStart: () => console.log('✅ Bot is running locally! Open Telegram and send /start'),
 });
+
+http.createServer((req, res) => res.end('ok')).listen(process.env.PORT || 3000);
