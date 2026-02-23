@@ -51,16 +51,39 @@ export async function orderDetailHandler(ctx) {
     return;
   }
 
-  // Look up license key by orderId first, fallback to soldTo + productId
-  let licenseKey = await db.collection('licensekeys').findOne({
-    orderId: new ObjectId(orderId),
-  });
+  // Try multiple ways to find the license key
+  let licenseKey = null;
 
+  // 1. By orderId as ObjectId
+  try {
+    licenseKey = await db.collection('licensekeys').findOne({
+      orderId: new ObjectId(orderId),
+    });
+  } catch {}
+
+  // 2. By orderId as string
   if (!licenseKey) {
     licenseKey = await db.collection('licensekeys').findOne({
-      productId: new ObjectId(order.productId),
-      soldTo:    ctx.user.telegramId,
-      status:    'sold',
+      orderId: orderId,
+    });
+  }
+
+  // 3. Fallback — by soldTo telegramId + productId
+  if (!licenseKey) {
+    try {
+      licenseKey = await db.collection('licensekeys').findOne({
+        productId: new ObjectId(order.productId),
+        soldTo:    ctx.user.telegramId,
+        status:    'sold',
+      });
+    } catch {}
+  }
+
+  // 4. Fallback — by soldTo telegramId only
+  if (!licenseKey) {
+    licenseKey = await db.collection('licensekeys').findOne({
+      soldTo: ctx.user.telegramId,
+      status: 'sold',
     });
   }
 
