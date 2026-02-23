@@ -4,6 +4,8 @@ import { getActiveProducts, getProductById, getStockCount, reserveAndSellKey } f
 import { debit }          from '../../services/balance.js';
 import { createOrder }    from '../../collections/orders.js';
 import { getConfig }      from '../../config.js';
+import { getDB }          from '../../db/client.js';
+import { ObjectId }       from 'mongodb';
 import { fmt, kb }        from '../helpers.js';
 
 // Show product list
@@ -50,7 +52,6 @@ export async function productHandler(ctx) {
     `📦 *${product.name}*\n\n` +
     `${product.description}\n\n` +
     `💰 Price: *${fmt.usd(product.price)}*\n` +
-    `⚡ Recharge Cost: *${fmt.usd(product.rechargePrice || 0)}*\n` +
     `📊 Stock: ${hasStock ? `✅ In Stock (${stock})` : '❌ Out of Stock'}`;
 
   const keyboard = new InlineKeyboard();
@@ -112,23 +113,30 @@ export async function confirmBuyHandler(ctx) {
   if (!product) return;
 
   try {
-    // 1. Reserve key first
-    const licenseKey = await reserveAndSellKey(productId, user.telegramId, null);
-
-    // 2. Create order with account email extracted from key (user:pass format)
+    // 1. Create order first to get a real orderId
     const orderId = await createOrder({
       telegramId:    user.telegramId,
       productId,
       productName:   product.name,
       amountPaid:    product.price,
-      accountEmail:  licenseKey.key.split(':')[0] || licenseKey.key,
-      rechargePrice: product.rechargePrice || 0,
+      accountEmail:  '',           // will update after key is reserved
+      rechargePrice: product.price, // same as purchase price
     });
 
-    // 3. Deduct balance
+    // 2. Reserve key and link to real orderId
+    const licenseKey = await reserveAndSellKey(productId, user.telegramId, orderId.toString());
+
+    // 3. Update order with account email extracted from key (username:password)
+    const db = getDB();
+    await db.collection('orders').updateOne(
+      { _id: orderId },
+      { $set: { accountEmail: licenseKey.key.split(':')[0] || licenseKey.key } }
+    );
+
+    // 4. Deduct balance
     await debit(user.telegramId, product.price, `Purchase: ${product.name}`, orderId);
 
-    // 4. Confirm + deliver credentials
+    // 5. Confirm + deliver credentials
     await ctx.editMessageText(
       `✅ *Purchase Successful!*\n\n` +
       `Product: *${product.name}*\n` +
@@ -142,7 +150,7 @@ export async function confirmBuyHandler(ctx) {
       { parse_mode: 'Markdown', reply_markup: kb.mainMenu() }
     );
 
-    // 5. Notify admins of new sale
+    // 6. Notify admins of new sale
     const { ADMIN_IDS } = getConfig(ctx.env);
     const buyerName = user.username ? `@${user.username}` : user.firstName || `#${user.telegramId}`;
     for (const adminId of ADMIN_IDS) {

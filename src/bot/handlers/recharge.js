@@ -24,11 +24,14 @@ export async function requestRechargeHandler(ctx) {
     return;
   }
 
+  const rechargePrice = order.rechargePrice || order.amountPaid;
+  const accountEmail  = order.accountEmail  || 'N/A';
+
   // Check balance
-  if (ctx.user.balance < order.rechargePrice) {
+  if (ctx.user.balance < rechargePrice) {
     await ctx.editMessageText(
       `❌ *Insufficient Balance*\n\n` +
-      `Recharge costs: *${fmt.usd(order.rechargePrice)}*\n` +
+      `Recharge costs: *${fmt.usd(rechargePrice)}*\n` +
       `Your balance: *${fmt.usd(ctx.user.balance)}*\n\n` +
       `Please load your balance first.`,
       {
@@ -44,8 +47,8 @@ export async function requestRechargeHandler(ctx) {
   // Confirm screen
   await ctx.editMessageText(
     `⚡ *Request Recharge*\n\n` +
-    `Account: \`${order.accountEmail}\`\n` +
-    `Cost: *${fmt.usd(order.rechargePrice)}*\n` +
+    `Account: \`${accountEmail}\`\n` +
+    `Cost: *${fmt.usd(rechargePrice)}*\n` +
     `Your Balance: *${fmt.usd(ctx.user.balance)}*\n\n` +
     `Confirm to proceed. Admin will be notified.`,
     {
@@ -72,11 +75,15 @@ export async function confirmRechargeHandler(ctx) {
 
   if (!order) return;
 
+  // Fallback rechargePrice to amountPaid if not set
+  const rechargePrice = order.rechargePrice || order.amountPaid;
+  const accountEmail  = order.accountEmail  || 'N/A';
+
   try {
     // Deduct balance
     await debit(
       ctx.user.telegramId,
-      order.rechargePrice,
+      rechargePrice,
       `Recharge: ${order.productName}`,
       orderId
     );
@@ -85,15 +92,15 @@ export async function confirmRechargeHandler(ctx) {
     const rechargeId = await createRecharge({
       telegramId:   ctx.user.telegramId,
       orderId,
-      accountEmail: order.accountEmail,
-      amount:       order.rechargePrice,
+      accountEmail,
+      amount:       rechargePrice,
     });
 
     // Notify buyer
     await ctx.editMessageText(
       `✅ *Recharge Requested!*\n\n` +
-      `Account: \`${order.accountEmail}\`\n` +
-      `Amount paid: *${fmt.usd(order.rechargePrice)}*\n\n` +
+      `Account: \`${accountEmail}\`\n` +
+      `Amount paid: *${fmt.usd(rechargePrice)}*\n\n` +
       `Admin has been notified and will recharge your account shortly.`,
       {
         parse_mode:   'Markdown',
@@ -109,8 +116,8 @@ export async function confirmRechargeHandler(ctx) {
     const adminMsg =
       `⚡ *Recharge Request*\n\n` +
       `👤 Buyer: ${buyerName}\n` +
-      `📧 Account: \`${order.accountEmail}\`\n` +
-      `💰 Amount: *${fmt.usd(order.rechargePrice)}*\n` +
+      `📧 Account: \`${accountEmail}\`\n` +
+      `💰 Amount: *${fmt.usd(rechargePrice)}*\n` +
       `📦 Product: ${order.productName}`;
 
     const adminKeyboard = new InlineKeyboard()

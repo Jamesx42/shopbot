@@ -1,9 +1,9 @@
 // src/bot/handlers/orders.js
 import { InlineKeyboard } from 'grammy';
 import { getOrdersByUser } from '../../collections/orders.js';
-import { getDB } from '../../db/client.js';
-import { ObjectId } from 'mongodb';
-import { fmt, kb } from '../helpers.js';
+import { getDB }           from '../../db/client.js';
+import { ObjectId }        from 'mongodb';
+import { fmt, kb }         from '../helpers.js';
 
 export async function ordersHandler(ctx) {
   await ctx.answerCallbackQuery().catch(() => {});
@@ -13,7 +13,12 @@ export async function ordersHandler(ctx) {
   if (!orders.length) {
     await ctx.editMessageText(
       `📦 *My Orders*\n\nYou haven't purchased anything yet.`,
-      { parse_mode: 'Markdown', reply_markup: new InlineKeyboard().text('🛍  Shop', 'shop').row().text('⬅️  Back', 'start') }
+      {
+        parse_mode:   'Markdown',
+        reply_markup: new InlineKeyboard()
+          .text('🛍  Shop', 'shop').row()
+          .text('⬅️  Back', 'start'),
+      }
     ).catch(() => {});
     return;
   }
@@ -25,7 +30,7 @@ export async function ordersHandler(ctx) {
   keyboard.text('⬅️  Back', 'start');
 
   await ctx.editMessageText(
-    `📦 *My Orders* (last ${orders.length})\n\nTap to view your license key:`,
+    `📦 *My Orders* (last ${orders.length})\n\nTap to view your credentials:`,
     { parse_mode: 'Markdown', reply_markup: keyboard }
   ).catch(() => {});
 }
@@ -46,9 +51,20 @@ export async function orderDetailHandler(ctx) {
     return;
   }
 
-  const licenseKey = await db.collection('licensekeys').findOne({
+  // Look up license key by orderId first, fallback to soldTo + productId
+  let licenseKey = await db.collection('licensekeys').findOne({
     orderId: new ObjectId(orderId),
   });
+
+  if (!licenseKey) {
+    licenseKey = await db.collection('licensekeys').findOne({
+      productId: new ObjectId(order.productId),
+      soldTo:    ctx.user.telegramId,
+      status:    'sold',
+    });
+  }
+
+  const rechargePrice = order.rechargePrice || order.amountPaid;
 
   const text =
     `📦 *Order Details*\n\n` +
@@ -58,13 +74,11 @@ export async function orderDetailHandler(ctx) {
     `🔐 *Login Credentials:*\n\`${licenseKey?.key || 'Not found — contact support'}\``;
 
   const keyboard = new InlineKeyboard();
-  if (order.rechargePrice > 0) {
-    keyboard.text(`⚡  Recharge  ${fmt.usd(order.rechargePrice)}`, `recharge_${orderId}`).row();
-  }
+  keyboard.text(`⚡  Recharge  ${fmt.usd(rechargePrice)}`, `recharge_${orderId}`).row();
   keyboard.text('⬅️  Back', 'orders');
 
   await ctx.editMessageText(text, {
     parse_mode:   'Markdown',
     reply_markup: keyboard,
-  }).catch(() => ctx.reply(text, { parse_mode: 'Markdown' }));
+  }).catch(() => ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard }));
 }
