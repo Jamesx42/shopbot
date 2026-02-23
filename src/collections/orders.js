@@ -4,13 +4,15 @@ import { ObjectId } from 'mongodb';
 
 const col = () => getDB().collection('orders');
 
-export async function createOrder({ telegramId, productId, productName, amountPaid }) {
+export async function createOrder({ telegramId, productId, productName, amountPaid, accountEmail, rechargePrice }) {
   const result = await col().insertOne({
     telegramId,
-    productId:   new ObjectId(productId),
+    productId:    new ObjectId(productId),
     productName,
     amountPaid,
-    createdAt:   new Date(),
+    accountEmail,   // stored for recharge notifications
+    rechargePrice,  // cost per recharge in cents
+    createdAt:    new Date(),
   });
   return result.insertedId;
 }

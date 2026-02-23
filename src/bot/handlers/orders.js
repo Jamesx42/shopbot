@@ -55,10 +55,16 @@ export async function orderDetailHandler(ctx) {
     `Product: *${order.productName}*\n` +
     `Paid: *${fmt.usd(order.amountPaid)}*\n` +
     `Date: ${fmt.date(order.createdAt)}\n\n` +
-    `🔑 *License Key:*\n\`${licenseKey?.key || 'Key not found — contact support'}\``;
+    `🔐 *Login Credentials:*\n\`${licenseKey?.key || 'Not found — contact support'}\``;
+
+  const keyboard = new InlineKeyboard();
+  if (order.rechargePrice > 0) {
+    keyboard.text(`⚡  Recharge  ${fmt.usd(order.rechargePrice)}`, `recharge_${orderId}`).row();
+  }
+  keyboard.text('⬅️  Back', 'orders');
 
   await ctx.editMessageText(text, {
     parse_mode:   'Markdown',
-    reply_markup: kb.back('orders'),
+    reply_markup: keyboard,
   }).catch(() => ctx.reply(text, { parse_mode: 'Markdown' }));
 }

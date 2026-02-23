@@ -1,10 +1,10 @@
 // src/bot/handlers/shop.js
 import { InlineKeyboard } from 'grammy';
-import { getActiveProducts, getProductById, getStockCount } from '../../collections/products.js';
-import { debit } from '../../services/balance.js';
-import { createOrder } from '../../collections/orders.js';
-import { reserveAndSellKey } from '../../collections/products.js';
-import { fmt, kb } from '../helpers.js';
+import { getActiveProducts, getProductById, getStockCount, reserveAndSellKey } from '../../collections/products.js';
+import { debit }          from '../../services/balance.js';
+import { createOrder }    from '../../collections/orders.js';
+import { getConfig }      from '../../config.js';
+import { fmt, kb }        from '../helpers.js';
 
 // Show product list
 export async function shopHandler(ctx) {
@@ -43,13 +43,14 @@ export async function productHandler(ctx) {
     return;
   }
 
-  const stock   = await getStockCount(productId);
+  const stock    = await getStockCount(productId);
   const hasStock = stock > 0;
 
   const text =
     `📦 *${product.name}*\n\n` +
     `${product.description}\n\n` +
     `💰 Price: *${fmt.usd(product.price)}*\n` +
+    `⚡ Recharge Cost: *${fmt.usd(product.rechargePrice || 0)}*\n` +
     `📊 Stock: ${hasStock ? `✅ In Stock (${stock})` : '❌ Out of Stock'}`;
 
   const keyboard = new InlineKeyboard();
@@ -111,21 +112,23 @@ export async function confirmBuyHandler(ctx) {
   if (!product) return;
 
   try {
-    // 1. Create order record
-    const orderId = await createOrder({
-      telegramId:  user.telegramId,
-      productId,
-      productName: product.name,
-      amountPaid:  product.price,
-    });
+    // 1. Reserve key first
+    const licenseKey = await reserveAndSellKey(productId, user.telegramId, null);
 
-    // 2. Reserve and mark key as sold
-    const licenseKey = await reserveAndSellKey(productId, user.telegramId, orderId);
+    // 2. Create order with account email extracted from key (user:pass format)
+    const orderId = await createOrder({
+      telegramId:    user.telegramId,
+      productId,
+      productName:   product.name,
+      amountPaid:    product.price,
+      accountEmail:  licenseKey.key.split(':')[0] || licenseKey.key,
+      rechargePrice: product.rechargePrice || 0,
+    });
 
     // 3. Deduct balance
     await debit(user.telegramId, product.price, `Purchase: ${product.name}`, orderId);
 
-    // 4. Confirm + deliver key
+    // 4. Confirm + deliver credentials
     await ctx.editMessageText(
       `✅ *Purchase Successful!*\n\n` +
       `Product: *${product.name}*\n` +
@@ -134,10 +137,26 @@ export async function confirmBuyHandler(ctx) {
     );
 
     await ctx.reply(
-      `🔑 *Your License Key:*\n\n\`${licenseKey.key}\`\n\n` +
+      `🔐 *Your Login Credentials:*\n\n\`${licenseKey.key}\`\n\n` +
       `_You can view this anytime in 📦 My Orders._`,
       { parse_mode: 'Markdown', reply_markup: kb.mainMenu() }
     );
+
+    // 5. Notify admins of new sale
+    const { ADMIN_IDS } = getConfig(ctx.env);
+    const buyerName = user.username ? `@${user.username}` : user.firstName || `#${user.telegramId}`;
+    for (const adminId of ADMIN_IDS) {
+      try {
+        await ctx.api.sendMessage(
+          adminId,
+          `🛒 *New Sale!*\n\n` +
+          `👤 Buyer: ${buyerName}\n` +
+          `📦 Product: ${product.name}\n` +
+          `💰 Amount: ${fmt.usd(product.price)}`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch {}
+    }
 
   } catch (err) {
     if (err.message === 'INSUFFICIENT_BALANCE') {

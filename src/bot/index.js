@@ -1,7 +1,11 @@
 // src/bot/index.js
 import { Bot } from 'grammy';
 import { userMiddleware, adminMiddleware } from './middlewares.js';
-import { startHandler }                   from './handlers/start.js';
+import {
+  requestRechargeHandler,
+  confirmRechargeHandler,
+  adminRechargeCompleteHandler,
+} from './handlers/recharge.js';import { startHandler }                   from './handlers/start.js';
 import { shopHandler, productHandler, buyHandler, confirmBuyHandler } from './handlers/shop.js';
 import { balanceHandler }                 from './handlers/balance.js';
 import { ordersHandler, orderDetailHandler } from './handlers/orders.js';
@@ -43,7 +47,12 @@ export function createBot(env) {
   bot.callbackQuery(/^confirm_(.+)$/, confirmBuyHandler);
 
   // ── Orders ───────────────────────────────────────────────
-  bot.callbackQuery(/^order_(.+)$/, orderDetailHandler);
+  bot.callbackQuery(/^order_(.+)$/,            orderDetailHandler);
+
+  // ── Recharge ─────────────────────────────────────────────
+  bot.callbackQuery(/^recharge_(.+)$/,         requestRechargeHandler);
+  bot.callbackQuery(/^confirm_recharge_(.+)$/, confirmRechargeHandler);
+  bot.callbackQuery(/^admin_recharge_done_(.+)$/, adminRechargeCompleteHandler);
 
   // ── Deposit ──────────────────────────────────────────────
   bot.callbackQuery(/^amt_(.+)$/,   amountHandler);

@@ -17,11 +17,12 @@ export async function getProductById(id) {
   return col().findOne({ _id: new ObjectId(id) });
 }
 
-export async function createProduct({ name, description, price }) {
+export async function createProduct({ name, description, price, rechargePrice }) {
   const result = await col().insertOne({
     name,
     description,
-    price,       // in cents
+    price,          // in cents
+    rechargePrice,  // in cents — cost per recharge request
     isActive:   true,
     totalSold:  0,
     createdAt:  new Date(),
