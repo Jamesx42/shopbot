@@ -66,7 +66,6 @@ export async function confirmRechargeHandler(ctx) {
 
   const orderId = ctx.match[1];
   const db      = getDB();
-  const { ADMIN_IDS } = getConfig(ctx.env);
 
   const order = await db.collection('orders').findOne({
     _id:        new ObjectId(orderId),
@@ -122,6 +121,9 @@ export async function confirmRechargeHandler(ctx) {
 
     const adminKeyboard = new InlineKeyboard()
       .text('✅  Mark Complete', `admin_recharge_done_${rechargeId}`);
+
+    const { ADMIN_IDS } = getConfig(ctx.env);
+    console.log('[RECHARGE] Notifying admins:', ADMIN_IDS);
 
     for (const adminId of ADMIN_IDS) {
       try {

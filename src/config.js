@@ -1,8 +1,8 @@
 // src/config.js
 // Works for both local (.env) and Cloudflare Workers (wrangler secrets)
 
-export function getConfig(env = {}) {
-  const e = { ...process.env, ...env };
+export function getConfig(env) {
+  const e = { ...process.env, ...(env || {}) };
   return {
     BOT_TOKEN:              e.BOT_TOKEN,
     MONGODB_URI:            e.MONGODB_URI,
