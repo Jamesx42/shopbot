@@ -39,6 +39,7 @@ export function createBot(env) {
   bot.callbackQuery('shop',    shopHandler);
   bot.callbackQuery('balance', balanceHandler);
   bot.callbackQuery('orders',  ordersHandler);
+  bot.callbackQuery(/^order_(.+)$/, orderDetailHandler);
   bot.callbackQuery('deposit', depositHandler);
   bot.callbackQuery('admin',   adminMiddleware, adminHandler);
 

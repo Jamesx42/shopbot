@@ -93,12 +93,13 @@ export async function confirmRechargeHandler(ctx) {
       orderId,
       accountEmail,
       amount:       rechargePrice,
+      productName:  order.productName,
     });
 
     // Notify buyer
     await ctx.editMessageText(
       `✅ *Recharge Requested!*\n\n` +
-      `Account: \`${accountEmail}\`\n` +
+      `Account: \`${order.productName}\`\n` +
       `Amount paid: *${fmt.usd(rechargePrice)}*\n\n` +
       `Admin has been notified and will recharge your account shortly.`,
       {
@@ -169,7 +170,7 @@ export async function adminRechargeCompleteHandler(ctx) {
     await ctx.api.sendMessage(
       recharge.telegramId,
       `✅ *Your Account Has Been Recharged!*\n\n` +
-      `📧 Account: \`${recharge.accountEmail}\`\n` +
+      `📧 Account: \`${recharge.productName}\`\n` +
       `💰 Amount: *${fmt.usd(recharge.amount)}*\n\n` +
       `You're all set! Enjoy.`,
       { parse_mode: 'Markdown' }

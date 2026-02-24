@@ -4,11 +4,12 @@ import { ObjectId } from 'mongodb';
 
 const col = () => getDB().collection('recharges');
 
-export async function createRecharge({ telegramId, orderId, accountEmail, amount }) {
+export async function createRecharge({ telegramId, orderId, accountEmail, amount, productName }) {
   const result = await col().insertOne({
     telegramId,
     orderId:      new ObjectId(orderId),
     accountEmail,
+    productName,
     amount,        // cents deducted from buyer balance
     status:        'pending',
     createdAt:     new Date(),
