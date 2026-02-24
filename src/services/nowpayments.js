@@ -3,7 +3,7 @@ import { getConfig } from '../config.js';
 
 function headers(env) {
   return {
-    'x-api-key':    getConfig(env).NOWPAYMENTS_API_KEY,
+    'x-api-key': getConfig(env).NOWPAYMENTS_API_KEY,
     'Content-Type': 'application/json',
   };
 }
@@ -14,14 +14,16 @@ function baseUrl(env) {
 
 export async function createPayment(env, { priceUsd, payCurrency, depositId }) {
   const res = await fetch(`${baseUrl(env)}/payment`, {
-    method:  'POST',
+    method: 'POST',
     headers: headers(env),
     body: JSON.stringify({
-      price_amount:      priceUsd / 100,   // NOWPayments expects dollars
-      price_currency:    'usd',
-      pay_currency:      payCurrency,
-      order_id:          depositId,
+      price_amount: priceUsd / 100,   // NOWPayments expects dollars
+      price_currency: 'usd',
+      pay_currency: payCurrency,
+      order_id: depositId,
       order_description: 'Balance top-up',
+      ipn_callback_url: `${getConfig(env).WEBHOOK_URL}/webhook/nowpayments`,
+
     }),
   });
 
@@ -43,11 +45,11 @@ export async function getPaymentStatus(env, paymentId) {
 }
 
 export async function verifyWebhookSignature(env, payload, receivedSig) {
-  const secret  = getConfig(env).NOWPAYMENTS_IPN_SECRET;
+  const secret = getConfig(env).NOWPAYMENTS_IPN_SECRET;
   const encoder = new TextEncoder();
 
   // Sort keys alphabetically (NOWPayments requirement)
-  const sorted  = JSON.stringify(sortDeep(payload));
+  const sorted = JSON.stringify(sortDeep(payload));
 
   const key = await crypto.subtle.importKey(
     'raw',
