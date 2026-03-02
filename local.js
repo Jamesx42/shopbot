@@ -81,7 +81,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
 // Keep process alive
 process.on('SIGTERM', () => {
