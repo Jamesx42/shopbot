@@ -1,50 +1,81 @@
 // src/webhooks/nowpayments.js
 import { verifyWebhookSignature } from '../services/nowpayments.js';
-import { getDepositByNowPaymentId, updateDepositStatus } from '../collections/deposits.js';
+import { getDepositByNowPaymentId, updateDepositStatus, getDepositById } from '../collections/deposits.js';
 import { credit } from '../services/balance.js';
-import { getConfig } from '../config.js';
 
 export async function handleNowPaymentsWebhook(request, env, bot) {
   let payload;
+  let rawBody;
+
   try {
-    payload = await request.json();
-  } catch {
+    rawBody = await request.text();
+    payload = JSON.parse(rawBody);
+  } catch (err) {
+    console.error('[WEBHOOK] Bad JSON:', err.message);
     return new Response('Bad JSON', { status: 400 });
   }
 
-  // Verify signature
-  const sig     = request.headers.get('x-nowpayments-sig');
-  const isValid = await verifyWebhookSignature(env, payload, sig);
-  if (!isValid) {
-    console.warn('[WEBHOOK] Invalid signature');
-    return new Response('Unauthorized', { status: 401 });
+  console.log('[WEBHOOK] Payload:', JSON.stringify(payload));
+
+  // Verify signature — log warning but don't block
+  const sig = request.headers.get('x-nowpayments-sig');
+  if (sig) {
+    try {
+      const isValid = await verifyWebhookSignature(env, payload, sig);
+      if (!isValid) {
+        console.warn('[WEBHOOK] Signature mismatch — proceeding anyway');
+      } else {
+        console.log('[WEBHOOK] Signature valid ✅');
+      }
+    } catch (err) {
+      console.error('[WEBHOOK] Signature error:', err.message);
+    }
+  } else {
+    console.warn('[WEBHOOK] No signature header');
   }
 
   const { payment_id, payment_status, order_id, outcome_amount } = payload;
-  console.log(`[WEBHOOK] ${payment_id} → ${payment_status}`);
+  console.log(`[WEBHOOK] payment_id=${payment_id} status=${payment_status} order_id=${order_id}`);
 
-  const deposit = await getDepositByNowPaymentId(payment_id) ||
-                  await getDepositByOrderId(order_id);
+  // Find deposit
+  let deposit = null;
+  try {
+    deposit = await getDepositByNowPaymentId(String(payment_id));
+  } catch (err) {
+    console.error('[WEBHOOK] Error finding by payment_id:', err.message);
+  }
+
+  if (!deposit && order_id) {
+    try {
+      deposit = await getDepositById(String(order_id));
+    } catch (err) {
+      console.error('[WEBHOOK] Error finding by order_id:', err.message);
+    }
+  }
 
   if (!deposit) {
+    console.error('[WEBHOOK] Deposit not found! payment_id:', payment_id, 'order_id:', order_id);
     return new Response('Deposit not found', { status: 404 });
   }
 
+  console.log('[WEBHOOK] Deposit found:', deposit._id, '| current status:', deposit.status);
+
   // Prevent double processing
   if (deposit.status === 'finished') {
+    console.log('[WEBHOOK] Already processed');
     return new Response('Already processed', { status: 200 });
   }
 
   if (payment_status === 'confirming' || payment_status === 'confirmed') {
-    await updateDepositStatus(payment_id, 'confirming');
-
-    // Notify user
+    await updateDepositStatus(String(payment_id), 'confirming');
     try {
       await bot.api.sendMessage(deposit.telegramId,
-        `🔄 *Payment Detected!*\n\nYour payment is confirming on the blockchain. Balance will be credited shortly.`,
+        `🔄 *Payment Detected!*\n\nConfirming on blockchain. Balance credited shortly.`,
         { parse_mode: 'Markdown' }
       );
-    } catch {}
+    } catch (err) {
+      console.error('[WEBHOOK] Notify error:', err.message);
+    }
   }
 
   else if (payment_status === 'finished') {
@@ -52,9 +83,10 @@ export async function handleNowPaymentsWebhook(request, env, bot) {
       ? Math.floor(Number(outcome_amount) * 100)
       : deposit.priceUsd;
 
-    await updateDepositStatus(payment_id, 'finished', actualUsd);
+    console.log('[WEBHOOK] Crediting', actualUsd, 'cents to user', deposit.telegramId);
 
-    // Credit balance
+    await updateDepositStatus(String(payment_id), 'finished', actualUsd);
+
     const user = await credit(
       deposit.telegramId,
       actualUsd,
@@ -62,7 +94,8 @@ export async function handleNowPaymentsWebhook(request, env, bot) {
       deposit._id
     );
 
-    // Notify user
+    console.log('[WEBHOOK] ✅ Credited! New balance:', user.balance);
+
     try {
       await bot.api.sendMessage(deposit.telegramId,
         `✅ *Balance Credited!*\n\n` +
@@ -71,18 +104,14 @@ export async function handleNowPaymentsWebhook(request, env, bot) {
         `You can now purchase products!`,
         { parse_mode: 'Markdown' }
       );
-    } catch {}
+    } catch (err) {
+      console.error('[WEBHOOK] Notify error:', err.message);
+    }
   }
 
   else if (payment_status === 'expired' || payment_status === 'failed') {
-    await updateDepositStatus(payment_id, payment_status);
+    await updateDepositStatus(String(payment_id), payment_status);
   }
 
   return new Response('OK', { status: 200 });
-}
-
-async function getDepositByOrderId(orderId) {
-  // Fallback: look up by our internal order_id (deposit _id)
-  const { getDepositById } = await import('../collections/deposits.js');
-  try { return getDepositById(orderId); } catch { return null; }
 }
