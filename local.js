@@ -1,4 +1,3 @@
-// local.js — Works for both local dev and Railway production
 import { config } from 'dotenv';
 config();
 
@@ -21,21 +20,19 @@ if (env.WEBHOOK_URL) {
   await bot.api.setWebhook(`${env.WEBHOOK_URL}/webhook/telegram`);
   console.log(`✅ Webhook set: ${env.WEBHOOK_URL}/webhook/telegram`);
 } else {
-  bot.start({ onStart: () => console.log('✅ Bot running locally!') });
+  await bot.start({ onStart: () => console.log('✅ Bot running locally!') });
 }
 
 // HTTP server
 const server = http.createServer(async (req, res) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
 
-  // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
     return;
   }
 
-  // Telegram webhook
   if (req.url === '/webhook/telegram' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -53,13 +50,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // NOWPayments webhook
   if (req.url === '/webhook/nowpayments' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        console.log('[NOWPAYMENTS] Webhook received, body length:', body.length);
+        console.log('[NOWPAYMENTS] Webhook received');
         const fakeReq = {
           text:    async () => body,
           json:    async () => JSON.parse(body),

@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node src/index.js",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "start": "node local.js"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
