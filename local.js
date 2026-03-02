@@ -1,12 +1,12 @@
 import { config } from 'dotenv';
 config();
 
-import http          from 'http';
+import http from 'http';
 import { connectDB } from './src/db/client.js';
 import { createBot } from './src/bot/index.js';
 import { handleNowPaymentsWebhook } from './src/webhooks/nowpayments.js';
 
-const env  = process.env;
+const env = process.env;
 const PORT = env.PORT || 3000;
 
 console.log('🔌 Connecting to MongoDB...');
@@ -57,8 +57,8 @@ const server = http.createServer(async (req, res) => {
       try {
         console.log('[NOWPAYMENTS] Webhook received');
         const fakeReq = {
-          text:    async () => body,
-          json:    async () => JSON.parse(body),
+          text: async () => body,
+          json: async () => JSON.parse(body),
           headers: { get: (key) => req.headers[key.toLowerCase()] },
         };
         const response = await handleNowPaymentsWebhook(fakeReq, env, bot);
@@ -80,3 +80,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Keep process alive
+process.on('SIGTERM', () => {
+  server.close(() => process.exit(0));
+});
+
+process.on('SIGINT', () => {
+  server.close(() => process.exit(0));
+});
