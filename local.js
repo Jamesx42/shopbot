@@ -7,7 +7,7 @@ import { createBot } from './src/bot/index.js';
 import { handleNowPaymentsWebhook } from './src/webhooks/nowpayments.js';
 
 const env = process.env;
-const PORT = env.PORT || 3000;
+const PORT = env.PORT || 8080;
 
 // 1. Connect DB
 console.log('🔌 Connecting to MongoDB...');
@@ -17,12 +17,20 @@ console.log('✅ MongoDB connected');
 // 2. Create bot
 const bot = createBot(env);
 
-// 3. Delete any existing webhook — ensure long polling works cleanly
-await bot.api.deleteWebhook();
+// 3. Delete any existing webhook
+await bot.api.deleteWebhook({ drop_pending_updates: true });
 console.log('✅ Webhook deleted — using long polling');
 
-// 4. Start long polling for Telegram (keeps process alive)
-bot.start({ onStart: () => console.log('✅ Bot running!') });
+// 4. Start long polling — handle conflict gracefully
+bot.start({
+  onStart: () => console.log('✅ Bot running!'),
+}).catch((err) => {
+  if (err.error_code === 409) {
+    console.warn('⚠️ Another instance is running — this instance will exit cleanly');
+    process.exit(0);
+  }
+  throw err;
+});
 
 // 5. HTTP server — only for NOWPayments webhook
 const server = http.createServer(async (req, res) => {
