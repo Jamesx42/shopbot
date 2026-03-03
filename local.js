@@ -35,6 +35,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Temporary debug — remove after testing
+  if (req.url === '/webhook/nowpayments' && req.method === 'GET') {
+    res.writeHead(200);
+    res.end('webhook endpoint alive');
+    return;
+  }
+
   // NOWPayments webhook
   if (req.url === '/webhook/nowpayments' && req.method === 'POST') {
     let body = '';
