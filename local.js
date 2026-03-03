@@ -9,47 +9,33 @@ import { handleNowPaymentsWebhook } from './src/webhooks/nowpayments.js';
 const env = process.env;
 const PORT = env.PORT || 3000;
 
+// 1. Connect DB
 console.log('🔌 Connecting to MongoDB...');
 await connectDB(env.MONGODB_URI);
 console.log('✅ MongoDB connected');
 
+// 2. Create bot
 const bot = createBot(env);
 
-// Webhook mode (Railway) or long polling (local)
-if (env.WEBHOOK_URL) {
-  await bot.api.setWebhook(`${env.WEBHOOK_URL}/webhook/telegram`);
-  console.log(`✅ Webhook set: ${env.WEBHOOK_URL}/webhook/telegram`);
-} else {
-  await bot.start({ onStart: () => console.log('✅ Bot running locally!') });
-}
+// 3. Delete any existing webhook — ensure long polling works cleanly
+await bot.api.deleteWebhook();
+console.log('✅ Webhook deleted — using long polling');
 
-// HTTP server
+// 4. Start long polling for Telegram (keeps process alive)
+bot.start({ onStart: () => console.log('✅ Bot running!') });
+
+// 5. HTTP server — only for NOWPayments webhook
 const server = http.createServer(async (req, res) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
 
+  // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
     return;
   }
 
-  if (req.url === '/webhook/telegram' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        await bot.handleUpdate(JSON.parse(body));
-        res.writeHead(200);
-        res.end('OK');
-      } catch (err) {
-        console.error('[TELEGRAM]', err.message);
-        res.writeHead(500);
-        res.end('Error');
-      }
-    });
-    return;
-  }
-
+  // NOWPayments webhook
   if (req.url === '/webhook/nowpayments' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -59,7 +45,7 @@ const server = http.createServer(async (req, res) => {
         const fakeReq = {
           text: async () => body,
           json: async () => JSON.parse(body),
-          headers: { get: (key) => req.headers[key.toLowerCase()] },
+          headers: { get: (k) => req.headers[k.toLowerCase()] },
         };
         const response = await handleNowPaymentsWebhook(fakeReq, env, bot);
         const text = await response.text();
@@ -79,14 +65,4 @@ const server = http.createServer(async (req, res) => {
   res.end('Not Found');
 });
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-
-// Keep process alive
-process.on('SIGTERM', () => {
-  server.close(() => process.exit(0));
-});
-
-process.on('SIGINT', () => {
-  server.close(() => process.exit(0));
-});
+server.listen(PORT, () => console.log(`🚀 HTTP server running on port ${PORT}`));
