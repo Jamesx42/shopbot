@@ -22,15 +22,28 @@ await bot.api.deleteWebhook({ drop_pending_updates: true });
 console.log('✅ Webhook deleted — using long polling');
 
 // 4. Start long polling — handle conflict gracefully
-bot.start({
-  onStart: () => console.log('✅ Bot running!'),
-}).catch((err) => {
-  if (err.error_code === 409) {
-    console.warn('⚠️ Another instance is running — this instance will exit cleanly');
-    process.exit(0);
+// Retry long polling — wait if another instance is still running
+async function startWithRetry(retries = 50) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await bot.start({
+        onStart: () => console.log('✅ Bot running!'),
+      });
+      return;
+    } catch (err) {
+      if (err.error_code === 409) {
+        console.warn(`⚠️ Another instance running — retrying in 5s (${i + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, 5000));
+      } else {
+        throw err;
+      }
+    }
   }
-  throw err;
-});
+  console.error('❌ Could not start after retries');
+  process.exit(1);
+}
+
+startWithRetry();
 
 // 5. HTTP server — only for NOWPayments webhook
 const server = http.createServer(async (req, res) => {
