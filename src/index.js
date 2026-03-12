@@ -1,17 +1,18 @@
 // src/index.js — Cloudflare Worker entry point
 import { webhookCallback } from 'grammy';
-import { connectDB }       from './db/client.js';
-import { createBot }       from './bot/index.js';
+import { connectDB } from './db/client.js';
+import { createBot } from './bot/index.js';
 import { handleNowPaymentsWebhook } from './webhooks/nowpayments.js';
 
 let bot = null;
 let handleUpdate = null;
 
 async function init(env) {
-  if (bot) return;
   await connectDB(env.MONGODB_URI);
-  bot          = createBot(env);
-  handleUpdate = webhookCallback(bot, 'cloudflare-mod');
+  if (!bot) {
+    bot = createBot(env);
+    handleUpdate = webhookCallback(bot, 'cloudflare-mod');
+  }
 }
 
 export default {
@@ -23,7 +24,7 @@ export default {
       return new Response('Init failed', { status: 500 });
     }
 
-    const url  = new URL(request.url);
+    const url = new URL(request.url);
     const path = url.pathname;
 
     // Health check
